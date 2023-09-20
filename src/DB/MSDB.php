@@ -1,15 +1,17 @@
 <?php
 
+// RCFERI
+
 namespace Ozdemir\Datatables\DB;
 
 use Ozdemir\Datatables\Query;
 use PDO;
 
 /**
- * Class MySQL
+ * Class MSDB
  * @package Ozdemir\Datatables\DB
  */
-class MySQL extends DBAdapter
+class MSDB extends DBAdapter
 {
     /**
      * @var PDO
@@ -22,7 +24,7 @@ class MySQL extends DBAdapter
     protected $config;
 
     /**
-     * MySQL constructor.
+     * MSDB constructor.
      * @param $config
      */
     public function __construct($config)
@@ -36,15 +38,13 @@ class MySQL extends DBAdapter
     public function connect()
     {
         $host = $this->config['host'];
-        $port = $this->config['port'];
+        $port = isset($this->config['port']) ? $this->config['port'] : "14333";
         $user = $this->config['username'];
         $pass = $this->config['password'];
-        $database = $this->config['database'];
-        $charset = $this->config['charset'] ?? 'utf8';
-
-        $this->pdo = new PDO("mysql:host=$host;dbname=$database;port=$port;charset=$charset", "$user", "$pass");
+        // $database = $this->config['database'];
+        // $charset = 'utf8';
+        $this->pdo = new PDO("sqlsrv:Server=$host,$port", $user, $pass);
         $this->pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
-
         return $this;
     }
 
@@ -56,7 +56,6 @@ class MySQL extends DBAdapter
     {
         $sql = $this->pdo->prepare($query->pre . $query);
         $sql->execute($query->escapes);
-
         return $sql->fetchAll(PDO::FETCH_ASSOC);
     }
 
@@ -66,9 +65,8 @@ class MySQL extends DBAdapter
      */
     public function count(Query $query)
     {
-        $sql = $this->pdo->prepare($query->pre . "Select count(*) as rowcount from ($query)t");
+        $sql = $this->pdo->prepare($query->pre . "Select count(*) AS 'rowcount' from ($query)t");
         $sql->execute($query->escapes);
-
         return (int)$sql->fetchColumn();
     }
 
@@ -80,8 +78,22 @@ class MySQL extends DBAdapter
     public function escape($string, Query $query)
     {
         $query->escapes[':binding_'.(count($query->escapes) + 1)] = $string;
-
         return ':binding_'.count($query->escapes);
     }
-}
 
+
+
+    /**
+     * @param $take
+     * @param $skip
+     * @return string
+     */
+    public function makeLimitString(int $take, int $skip)
+    {
+        // return " LIMIT $take OFFSET $skip";
+        return " OFFSET $skip ROWS FETCH NEXT $take ROWS ONLY";
+
+    }
+
+
+}

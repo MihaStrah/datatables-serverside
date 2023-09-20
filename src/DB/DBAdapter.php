@@ -50,9 +50,14 @@ abstract class DBAdapter implements DatabaseInterface
      * @param string $column
      * @return string
      */
-    public function makeDistinctQueryString(Query $query, string $column): string
+    public function makeDistinctQueryString(Query $query, string $column, string $labelColumn = null): string
     {
+      if ($labelColumn) {
+        return "SELECT $column, $labelColumn FROM ($query)t GROUP BY $column";
+      }
+      else {
         return "SELECT $column FROM ($query)t GROUP BY $column";
+      }
     }
 
     /**
@@ -73,6 +78,23 @@ abstract class DBAdapter implements DatabaseInterface
     public function makeLikeString(Query $query, Column $column, string $word)
     {
         return $column->name.' LIKE '.$this->escape('%'.$word.'%', $query);
+    }
+
+    /**
+     * @param Query $query
+     * @param Column $column
+     * @param $word
+     * @return string
+     */
+     // RCFERI
+    public function makeCustomLikeString(Query $query, Column $column, string $word)
+    {
+        return $column->name.' LIKE '.$this->escape($word, $query);
+    }
+
+    public function makeNoFilterString()
+    {
+        return '1=1';
     }
 
     /**

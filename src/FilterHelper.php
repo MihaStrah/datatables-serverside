@@ -63,6 +63,21 @@ class FilterHelper
     }
 
     /**
+     * @return string
+     */
+     // RCFERI
+    public function customLikeFilter($value): string
+    {
+        return $this->db->makeCustomLikeString($this->query, $this->column, $value);
+    }
+
+    // RCFERI
+    public function noFilter(): string
+    {
+        return $this->db->makeNoFilterString();
+    }
+
+    /**
      * @param $low
      * @param $high
      * @return string

@@ -25,6 +25,10 @@ class Query
      *
      * @param $query
      */
+
+     // RCFERI
+    public $pre = '';
+
     public function __construct($query = '')
     {
         $this->sql = $query;
@@ -38,6 +42,12 @@ class Query
     public function set($query): void
     {
         $this->sql = $query;
+    }
+    
+    // RCFERI
+    public function setPre($preQuery): void
+    {
+        $this->pre = $preQuery;
     }
 
     /**

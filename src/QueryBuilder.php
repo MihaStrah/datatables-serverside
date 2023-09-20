@@ -40,22 +40,22 @@ class QueryBuilder
      * the query has default ordering
      * @var ColumnCollection
      */
-    protected $columns;
+    private $columns;
 
     /**
      * @var Option
      */
-    protected $options;
+    private $options;
 
     /**
      * @var DatabaseInterface
      */
-    protected $db;
+    private $db;
 
     /**
      * @var boolean
      */
-    protected $dataObject = false;
+    private $dataObject = false;
 
     /**
      *
@@ -146,12 +146,22 @@ class QueryBuilder
     }
 
     /**
+     * RCFERI
+     * @param $query
+     */
+    public function setPreQuery($preQuery): void
+    {
+        $this->query->setPre($preQuery);
+    }
+
+    /**
      *
      */
     public function setFilteredQuery(): void
     {
         $this->filtered = new Query();
         $this->filtered->set($this->query.$this->filter($this->filtered));
+        $this->filtered->setPre($this->query->pre);
     }
 
     /**
@@ -177,10 +187,10 @@ class QueryBuilder
      * @param $column
      * @return Query
      */
-    public function getDistinctQuery($column): Query
+    public function getDistinctQuery($column, $labelColumn = null): Query
     {
         $distinct = clone $this->query;
-        $distinct->set($this->db->makeDistinctQueryString($this->query, $column));
+        $distinct->set($this->db->makeDistinctQueryString($this->query, $column, $labelColumn));
 
         return $distinct;
     }
@@ -277,7 +287,8 @@ class QueryBuilder
     protected function orderBy(): string
     {
         $orders = $this->options->order();
-        
+
+        // remove - RCFERI - check if it is buggy
         $orders = array_filter($orders, function ($order) {
             return \in_array($order['dir'], ['asc', 'desc'],
                     true) && $this->columns->visible()->offsetGet($order['column'])->isOrderable();
@@ -286,6 +297,7 @@ class QueryBuilder
         $o = [];
 
         foreach ($orders as $order) {
+            // RCFERI fix if broken:  $id = $this->options->columns()[$order['column']]['data'];
             $data = $this->options->columns()[$order['column']]['data'];
             $id = $data['sort'] ?? $data['_'] ?? $data;
 
