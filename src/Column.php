@@ -67,9 +67,9 @@ class Column
 
     /**
      * @param $row array
-     * @return string
+     * @return string|array
      */
-    public function value($row): string
+    public function value($row): string|array
     {
         if ($this->closure instanceof \Closure) {
             return call_user_func($this->closure, $row) ?? '';
