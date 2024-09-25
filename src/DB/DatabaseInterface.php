@@ -72,6 +72,15 @@ interface DatabaseInterface
     public function makeCustomLikeString(Query $query, Column $column, string $word);
 
     /**
+     * @param Query $query
+     * @param Column $column
+     * @param string $word
+     * @return mixed
+     */
+     // RCFERI
+     public function makeCustomFindInSetFilterString(Query $query, Column $column, string $word);
+
+    /**
      * @param array $o
      * @return mixed
      */
