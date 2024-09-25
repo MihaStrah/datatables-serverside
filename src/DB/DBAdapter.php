@@ -92,6 +92,18 @@ abstract class DBAdapter implements DatabaseInterface
         return $column->name.' LIKE '.$this->escape($word, $query);
     }
 
+    /**
+     * @param Query $query
+     * @param Column $column (column should return a comma separated list of values)
+     * @param $word
+     * @return string
+     */
+     // RCFERI
+    public function makeCustomFindInSetFilterString(Query $query, Column $column, string $word)
+    {
+        return "FIND_IN_SET({$this->escape($word, $query)}, {$column->name}) > 0";
+    }
+
     public function makeNoFilterString()
     {
         return '1=1';
