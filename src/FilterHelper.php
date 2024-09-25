@@ -71,6 +71,15 @@ class FilterHelper
         return $this->db->makeCustomLikeString($this->query, $this->column, $value);
     }
 
+    /**
+     * @return string
+     */
+     // RCFERI
+     public function customFindInSetFilter($value): string
+     {
+         return $this->db->makeCustomFindInSetFilterString($this->query, $this->column, $value);
+     }
+
     // RCFERI
     public function noFilter(): string
     {
