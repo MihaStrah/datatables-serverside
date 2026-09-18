@@ -8,300 +8,341 @@ use Ozdemir\Datatables\Http\Request;
 use Ozdemir\Datatables\Iterators\ColumnCollection;
 
 /**
-* Class Datatables
-*
-* @package Ozdemir\Datatables
-*/
+ * Class Datatables
+ *
+ * @package Ozdemir\Datatables
+ */
 class Datatables
 {
-  /**
-  * @var DatabaseInterface
-  */
-  protected $db;
+    /**
+     * @var DatabaseInterface
+     */
+    protected $db;
 
-  /**
-  * @var ColumnCollection
-  */
-  protected $columns;
+    /**
+     * @var ColumnCollection
+     */
+    protected $columns;
 
-  /**
-  * @var QueryBuilder
-  */
-  protected $builder;
+    /**
+     * @var QueryBuilder
+     */
+    protected $builder;
 
-  // RCFERI
-  /**
-  * @var QueryBuilder
-  */
-  protected $distinctBuilder;
+    // RCFERI
+    /**
+     * @var QueryBuilder
+     */
+    protected $distinctBuilder;
 
-  /**
-  * @var Option
-  */
-  protected $options;
+    /**
+     * @var Option
+     */
+    protected $options;
 
-  /**
-  * Custom escapes
-  * @var array
-  */
-  public $escapes = [];
+    /**
+     * Custom escapes
+     * @var array
+     */
+    public $escapes = [];
 
-  /**
-  * @var array
-  */
-  protected $response;
+    /**
+     * @var array
+     */
+    protected $response;
 
-  /**
-  * @var array
-  */
-  protected $distinctColumn = [];
+    /**
+     * @var array
+     */
+    protected $distinctColumn = [];
 
-  /**
-  * @var array
-  */
-  protected $distinctData = [];
+    /**
+     * @var array
+     */
+    protected $distinctData = [];
 
-  /**
-  * Datatables constructor.
-  *
-  * @param DatabaseInterface $db
-  * @param Request $request
-  */
-  public function __construct(DatabaseInterface $db, Request $request = null)
-  {
-    $this->db = $db->connect();
-    $this->options = new Option($request ?: Request::createFromGlobals());
-  }
+    /**
+     * Optional precomputed totals (RCFERI). When set, skips wrapping the full
+     * query in SELECT COUNT(*) — useful after materializing into a temp table.
+     * @var int|null
+     */
+    protected $recordsTotalOverride = null;
+
+    /**
+     * @var int|null
+     */
+    protected $recordsFilteredOverride = null;
+
+    /**
+     * Datatables constructor.
+     *
+     * @param DatabaseInterface $db
+     * @param Request $request
+     */
+    public function __construct(DatabaseInterface $db, Request $request = null)
+    {
+        $this->db = $db->connect();
+        $this->options = new Option($request ?: Request::createFromGlobals());
+    }
+
+    /**
+     * Skip the expensive COUNT(*) wrap for recordsTotal.
+     * RCFERI
+     */
+    public function setRecordsTotal(?int $total): Datatables
+    {
+        $this->recordsTotalOverride = $total;
+        return $this;
+    }
+
+    /**
+     * Skip the expensive COUNT(*) wrap for recordsFiltered.
+     * When null and no column filters differ from the base query, filtered == total.
+     * RCFERI
+     */
+    public function setRecordsFiltered(?int $filtered): Datatables
+    {
+        $this->recordsFilteredOverride = $filtered;
+        return $this;
+    }
 
 
-  /**
-  * @param $column
-  * @param Closure $closure
-  * @return Datatables
-  */
-  public function add($column, Closure $closure): Datatables
-  {
-    $column = new Column($column);
-    $column->closure = $closure;
-    $column->interaction = false;
-    $this->columns->append($column);
+    /**
+     * @param $column
+     * @param Closure $closure
+     * @return Datatables
+     */
+    public function add($column, Closure $closure): Datatables
+    {
+        $column = new Column($column);
+        $column->closure = $closure;
+        $column->interaction = false;
+        $this->columns->append($column);
 
-    return $this;
-  }
+        return $this;
+    }
 
-  /**
-  * @param $column
-  * @param Closure $closure
-  * @return Datatables
-  */
-  public function edit($column, Closure $closure): Datatables
-  {
-    $column = $this->columns->getByName($column);
-    $column->closure = $closure;
+    /**
+     * @param $column
+     * @param Closure $closure
+     * @return Datatables
+     */
+    public function edit($column, Closure $closure): Datatables
+    {
+        $column = $this->columns->getByName($column);
+        $column->closure = $closure;
 
-    return $this;
-  }
+        return $this;
+    }
 
-  /**
-  * @param $column
-  * @param Closure $closure
-  * @return Datatables
-  */
-  public function filter($column, Closure $closure): Datatables
-  {
-    $column = $this->columns->getByName($column);
-    $column->customFilter = $closure;
+    /**
+     * @param $column
+     * @param Closure $closure
+     * @return Datatables
+     */
+    public function filter($column, Closure $closure): Datatables
+    {
+        $column = $this->columns->getByName($column);
+        $column->customFilter = $closure;
 
-    return $this;
-  }
+        return $this;
+    }
 
-  /**
-  * @param string $key
-  * @param string $value
-  * @return Datatables
-  */
-  public function escape($key, $value): Datatables
-  {
-    $this->escapes[$key] = $value;
+    /**
+     * @param string $key
+     * @param string $value
+     * @return Datatables
+     */
+    public function escape($key, $value): Datatables
+    {
+        $this->escapes[$key] = $value;
 
-    return $this;
-  }
+        return $this;
+    }
 
-  /**
-  * @param $name
-  * @return Datatables
-  */
-  public function setDistinctResponseFrom($name): Datatables
-  {
-    $this->distinctColumn[] = $name;
+    /**
+     * @param $name
+     * @return Datatables
+     */
+    public function setDistinctResponseFrom($name): Datatables
+    {
+        $this->distinctColumn[] = $name;
 
-    return $this;
-  }
+        return $this;
+    }
 
-  /**
-  * @param $array
-  * @return Datatables
-  */
-  public function setDistinctResponse($array): Datatables
-  {
-    $this->distinctData = $array;
+    /**
+     * @param $array
+     * @return Datatables
+     */
+    public function setDistinctResponse($array): Datatables
+    {
+        $this->distinctData = $array;
 
-    return $this;
-  }
+        return $this;
+    }
 
-  /**
-  * @return array
-  */
-  public function getColumns(): array
-  {
-    return $this->columns->names();
-  }
+    /**
+     * @return array
+     */
+    public function getColumns(): array
+    {
+        return $this->columns->names();
+    }
 
-  /**
-  * @return Query
-  */
-  public function getQuery(): Query
-  {
-    return $this->builder->full;
-  }
+    /**
+     * @return Query
+     */
+    public function getQuery(): Query
+    {
+        return $this->builder->full;
+    }
 
-  /**
-  * @param string $column
-  * @return Datatables
-  */
-  public function hide(string $column, $searchable = false): Datatables
-  {
-    $this->columns->getByName($column)->hide($searchable);
+    /**
+     * @param string $column
+     * @return Datatables
+     */
+    public function hide(string $column, $searchable = false): Datatables
+    {
+        $this->columns->getByName($column)->hide($searchable);
 
-    return $this;
-  }
+        return $this;
+    }
 
-  /**
-  * @param string $query
-  * @return Datatables
-  */
-  public function query($query): Datatables
-  {
-    $query = $this->db->getQueryString($query);
-    $this->builder = new QueryBuilder($query, $this->options, $this->db);
-    $this->columns = $this->builder->columns();
+    /**
+     * @param string $query
+     * @return Datatables
+     */
+    public function query($query): Datatables
+    {
+        $query = $this->db->getQueryString($query);
+        $this->builder = new QueryBuilder($query, $this->options, $this->db);
+        $this->columns = $this->builder->columns();
 
-    return $this;
-  }
+        return $this;
+    }
 
-  // RCFERI
-  // only for mysql and msdb
-  public function preQuery($preQuery): Datatables
-  {
-    $this->builder->setPreQuery($preQuery);
-    if ($this->distinctBuilder) $this->distinctBuilder->setPreQuery($preQuery);
-    return $this;
-  }
+    // RCFERI
+    // only for mysql and msdb
+    public function preQuery($preQuery): Datatables
+    {
+        $this->builder->setPreQuery($preQuery);
+        if ($this->distinctBuilder) $this->distinctBuilder->setPreQuery($preQuery);
+        return $this;
+    }
 
-  // RCFERI
-  public function distinctQuery($query): Datatables
-  {
-    $this->distinctBuilder = new QueryBuilder($query, $this->options, $this->db);
-    return $this;
-  }
+    // RCFERI
+    public function distinctQuery($query): Datatables
+    {
+        $this->distinctBuilder = new QueryBuilder($query, $this->options, $this->db);
+        return $this;
+    }
 
-  /**
-  * @return Datatables
-  */
-  public function generate(): Datatables
-  {
-    $this->builder->setColumnAttributes();
-    $this->builder->setFilteredQuery();
-    $this->builder->setFullQuery();
-    $this->builder->setEscapes($this->escapes);
+    /**
+     * @return Datatables
+     */
+    public function generate(): Datatables
+    {
+        $this->builder->setColumnAttributes();
+        $this->builder->setFilteredQuery();
+        $this->builder->setFullQuery();
+        $this->builder->setEscapes($this->escapes);
 
-    $this->setResponseData();
+        $this->setResponseData();
 
-    return $this;
-  }
+        return $this;
+    }
 
-  /**
-  * @return array
-  */
-  protected function getData(): array
-  {
-    $data = $this->db->query($this->builder->full);
+    /**
+     * @return array
+     */
+    protected function getData(): array
+    {
+        $data = $this->db->query($this->builder->full);
 
-    return array_map([$this, 'prepareRowData'], $data);
-  }
+        return array_map([$this, 'prepareRowData'], $data);
+    }
 
-  /**
-  * @param $row
-  * @return array
-  */
-  protected function prepareRowData($row): array
-  {
-    $keys = $this->builder->isDataObject() ? $this->columns->names() : array_keys($this->columns->names());
+    /**
+     * @param $row
+     * @return array
+     */
+    protected function prepareRowData($row): array
+    {
+        $keys = $this->builder->isDataObject() ? $this->columns->names() : array_keys($this->columns->names());
 
-    $values = array_map(function (Column $column) use ($row) {
-      return $column->value($row);
-    }, $this->columns->visible()->getArrayCopy());
+        $values = array_map(function (Column $column) use ($row) {
+            return $column->value($row);
+        }, $this->columns->visible()->getArrayCopy());
 
-    return array_combine($keys, $values);
-  }
+        return array_combine($keys, $values);
+    }
 
-  /**
-  * @return array
-  */
-  public function getDistinctData(): array
-  {
-    foreach ($this->distinctColumn as $column) {
+    /**
+     * @return array
+     */
+    public function getDistinctData(): array
+    {
+        foreach ($this->distinctColumn as $column) {
             $output[$column] = array_column($this->db->query($this->builder->getDistinctQuery($column)), $column);
+        }
+
+        return $output ?? [];
     }
 
-    return $output ?? [];
-  }
+    /**
+     *
+     */
+    public function setResponseData(): void
+    {
+        $this->response['draw'] = $this->options->draw();
 
-  /**
-  *
-  */
-  public function setResponseData(): void
-  {
-    $this->response['draw'] = $this->options->draw();
-    $this->response['recordsTotal'] = $this->db->count($this->builder->query);
+        // RCFERI: allow callers to supply totals (e.g. COUNT(*) FROM temp table)
+        if ($this->recordsTotalOverride !== null) {
+            $this->response['recordsTotal'] = $this->recordsTotalOverride;
+        } else {
+            $this->response['recordsTotal'] = $this->db->count($this->builder->query);
+        }
 
-    if($this->builder->query->sql === $this->builder->filtered->sql) {
-      $this->response['recordsFiltered'] = $this->response['recordsTotal'];
-    } else {
-      $this->response['recordsFiltered'] = $this->db->count($this->builder->filtered);
+        if ($this->recordsFilteredOverride !== null) {
+            $this->response['recordsFiltered'] = $this->recordsFilteredOverride;
+        } elseif ($this->builder->query->sql === $this->builder->filtered->sql) {
+            $this->response['recordsFiltered'] = $this->response['recordsTotal'];
+        } else {
+            $this->response['recordsFiltered'] = $this->db->count($this->builder->filtered);
+        }
+
+        $this->response['data'] = $this->getData();
+
+        if (\count($this->distinctColumn) > 0 || \count($this->distinctData) > 0) {
+            $this->response['distinctData'] = array_merge($this->response['distinctData'] ?? [],
+                $this->getDistinctData(), $this->distinctData);
+        }
     }
 
-    $this->response['data'] = $this->getData();
-
-    if (\count($this->distinctColumn) > 0 || \count($this->distinctData) > 0) {
-      $this->response['distinctData'] = array_merge($this->response['distinctData'] ?? [],
-      $this->getDistinctData(), $this->distinctData);
+    /**
+     * @return string
+     */
+    public function __toString()
+    {
+        return $this->toJson();
     }
-  }
 
-  /**
-  * @return string
-  */
-  public function __toString()
-  {
-    return $this->toJson();
-  }
+    /**
+     * @return string
+     */
+    public function toJson(): string
+    {
+        header('Content-type: application/json;');
 
-  /**
-  * @return string
-  */
-  public function toJson(): string
-  {
-    header('Content-type: application/json;');
+        return json_encode($this->response, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT);
+    }
 
-    return json_encode($this->response, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT);
-  }
-
-  /**
-  * @return array
-  */
-  public function toArray(): array
-  {
-    return $this->response;
-  }
+    /**
+     * @return array
+     */
+    public function toArray(): array
+    {
+        return $this->response;
+    }
 }
