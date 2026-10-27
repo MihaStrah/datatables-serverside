@@ -62,16 +62,14 @@ class Datatables
     protected $distinctData = [];
 
     /**
-     * Optional precomputed totals (RCFERI). When set, skips wrapping the full
-     * query in SELECT COUNT(*) — useful after materializing into a temp table.
-     * @var int|null
+     * @var array
      */
-    protected $recordsTotalOverride = null;
+    private $queries = [];
 
     /**
-     * @var int|null
+     * @var int
      */
-    protected $recordsFilteredOverride = null;
+    private $recordsTotal;
 
     /**
      * Datatables constructor.
@@ -79,7 +77,7 @@ class Datatables
      * @param DatabaseInterface $db
      * @param Request $request
      */
-    public function __construct(DatabaseInterface $db, Request $request = null)
+    public function __construct(DatabaseInterface $db, ?Request $request = null)
     {
         $this->db = $db->connect();
         $this->options = new Option($request ?: Request::createFromGlobals());
@@ -140,10 +138,18 @@ class Datatables
      * @param Closure $closure
      * @return Datatables
      */
-    public function filter($column, Closure $closure): Datatables
+    public function filter($column, Closure $closure, $filterType = CustomFilterType::INDIVIDUAL): Datatables
     {
         $column = $this->columns->getByName($column);
-        $column->customFilter = $closure;
+        $column->customIndividualFilter = $closure;
+
+        $column->customFilterType = $filterType;
+        if ($filterType !== CustomFilterType::GLOBALLY) {
+            $column->customIndividualFilter = $closure;
+        }
+        if ($filterType !== CustomFilterType::INDIVIDUAL) {
+            $column->customGlobalFilter = $closure;
+        }
 
         return $this;
     }
@@ -156,6 +162,17 @@ class Datatables
     public function escape($key, $value): Datatables
     {
         $this->escapes[$key] = $value;
+
+        return $this;
+    }
+
+    /**
+     * @param bool $value
+     * @return Datatables
+     */
+    public function forceExactMatch(bool $value): Datatables
+    {
+        $this->db->setExactMatch($value);
 
         return $this;
     }
@@ -210,14 +227,18 @@ class Datatables
     }
 
     /**
-     * @param string $query
+     * @param mixed $query
      * @return Datatables
      */
-    public function query($query): Datatables
+    public function query($query, array $escapes = []): Datatables
     {
         $query = $this->db->getQueryString($query);
         $this->builder = new QueryBuilder($query, $this->options, $this->db);
         $this->columns = $this->builder->columns();
+
+        foreach ($escapes as $key => $value) {
+            $this->escape($key, $value);
+        }
 
         return $this;
     }
@@ -290,12 +311,27 @@ class Datatables
         return $output ?? [];
     }
 
+    public function setTotalRecords(int $total): Datatables
+    {
+        $this->recordsTotal = $total;
+
+        return $this;
+    }
+
     /**
      *
      */
     public function setResponseData(): void
     {
+        $this->queries = [];
         $this->response['draw'] = $this->options->draw();
+
+        if (is_null($this->recordsTotal)) {
+            $this->response['recordsTotal'] = $this->db->count($this->builder->query);
+            $this->queries['query'] = $this->builder->query;
+        } else {
+            $this->response['recordsTotal'] = $this->recordsTotal;
+        }
 
         // RCFERI: allow callers to supply totals (e.g. COUNT(*) FROM temp table)
         if ($this->recordsTotalOverride !== null) {
@@ -310,14 +346,24 @@ class Datatables
             $this->response['recordsFiltered'] = $this->response['recordsTotal'];
         } else {
             $this->response['recordsFiltered'] = $this->db->count($this->builder->filtered);
+            $this->queries['recordsFiltered'] = $this->builder->filtered;
         }
 
         $this->response['data'] = $this->getData();
+        $this->queries['full'] = $this->builder->full;
 
         if (\count($this->distinctColumn) > 0 || \count($this->distinctData) > 0) {
             $this->response['distinctData'] = array_merge($this->response['distinctData'] ?? [],
                 $this->getDistinctData(), $this->distinctData);
         }
+    }
+
+    /**
+     * @return array
+     */
+    public function queries(): array
+    {
+        return $this->queries;
     }
 
     /**

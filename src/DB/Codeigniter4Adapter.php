@@ -2,11 +2,16 @@
 
 namespace Ozdemir\Datatables\DB;
 
+use Ozdemir\Datatables\Column;
 use Ozdemir\Datatables\Iterators\ColumnCollection;
 use Ozdemir\Datatables\Query;
 
 /**
  * Class Codeigniter4Adapter
+ *
+ * Supports CodeIgniter 4.x (MySQL and PostgreSQL). For CodeIgniter 3.x use
+ * CodeigniterAdapter instead.
+ *
  * @package Ozdemir\Datatables\DB
  */
 class Codeigniter4Adapter extends DBAdapter
@@ -17,11 +22,14 @@ class Codeigniter4Adapter extends DBAdapter
     protected $db;
 
     /**
-     * @var $config
+     * @var array
      */
+    protected $config;
+
     public function __construct($config = null)
     {
-
+        $this->config = $config ?? ['DBGroup' => 'default'];
+        $this->config['DBGroup'] = $this->config['DBGroup'] ?? 'default';
     }
 
     /**
@@ -29,7 +37,7 @@ class Codeigniter4Adapter extends DBAdapter
      */
     public function connect()
     {
-        $this->db = \Config\Database::connect();
+        $this->db = \Config\Database::connect($this->config['DBGroup']);
 
         return $this;
     }
@@ -86,12 +94,27 @@ class Codeigniter4Adapter extends DBAdapter
      * @param $query
      * @return string
      */
-    public function getQueryString($query)
+    public function getQueryString($query): string
     {
         if ($query instanceof \CodeIgniter\Database\BaseBuilder) {
             return $query->getCompiledSelect();
         }
 
         return $query;
+    }
+
+    /**
+     * @param Query $query
+     * @param Column $column
+     * @param $word
+     * @return string
+     */
+    public function makeLikeString(Query $query, Column $column, string $word)
+    {
+        if ($this->db->getPlatform() == 'Postgre') {
+            return $column->name.'::TEXT ILIKE '.$this->escape('%'.$word.'%', $query);
+        }
+
+        return $column->name.' LIKE '.$this->escape('%'.$word.'%', $query);
     }
 }

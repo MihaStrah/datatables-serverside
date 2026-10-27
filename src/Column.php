@@ -50,7 +50,19 @@ class Column
      * Custom filter
      * @var \Closure
      */
-    public $customFilter;
+    public $customIndividualFilter;
+
+    /**
+     * Custom filter
+     * @var \Closure
+     */
+    public $customGlobalFilter;
+
+    /**
+     *
+     * @var string
+     */
+    public $customFilterType;
 
     /**
      * Column constructor.
@@ -72,17 +84,25 @@ class Column
     public function value($row): string|array
     {
         if ($this->closure instanceof \Closure) {
-            return call_user_func($this->closure, $row) ?? '';
+            $value = call_user_func($this->closure, $row);
+        } else {
+            $value = $row[$this->name] ?? null;
         }
 
-        return $row[$this->name] ?? '';
+        // Arrays (e.g. orthogonal data) are passed through untouched; scalars are
+        // cast to string to preserve the previous behaviour and a null becomes ''.
+        if (is_array($value)) {
+            return $value;
+        }
+
+        return (string) $value;
     }
 
     /**
      * Set visibility of the column.
      * @param bool $searchable
      */
-    public function hide($searchable = false): void
+    public function hide(bool $searchable = false): void
     {
         $this->hidden = true;
         $this->forceSearch = $searchable;
@@ -91,9 +111,17 @@ class Column
     /**
      * @return bool
      */
-    public function hasFilter(): bool
+    public function hasCustomIndividualFilter(): bool
     {
-        return $this->customFilter instanceof \Closure;
+        return $this->customIndividualFilter instanceof \Closure;
+    }
+
+    /**
+     * @return bool
+     */
+    public function hasCustomGlobalFilter(): bool
+    {
+        return $this->customGlobalFilter instanceof \Closure;
     }
 
     /**

@@ -1,7 +1,7 @@
 # Datatables library for PHP 
 [![Latest Stable Version](https://poser.pugx.org/ozdemir/datatables/v/stable)](https://packagist.org/packages/ozdemir/datatables) [![PHP Composer](https://github.com/n1crack/datatables/actions/workflows/tests.yml/badge.svg)](https://github.com/n1crack/datatables/actions/workflows/tests.yml) [![license](https://img.shields.io/github/license/mashape/apistatus.svg)](https://github.com/n1crack/datatables/blob/master/LICENCE) 
 
-PHP Library to handle server-side processing for Datatables, in a fast and simple way. [Live Demo](https://datatables.ozdemir.be/)
+Simplify your Datatables server-side processing effortlessly using our lightning-fast PHP library, streamlining your workflow seamlessly. [Live Demo](https://datatables.ozdemir.be/)
 
 ## Features  
 * Easy to use. Generates json using only a few lines of code.
@@ -13,7 +13,7 @@ PHP Library to handle server-side processing for Datatables, in a fast and simpl
     - [Laravel](https://datatables.ozdemir.be/laravel)
     - [CodeIgniter 3](https://datatables.ozdemir.be/codeigniter)
     - [CodeIgniter 4](https://datatables.ozdemir.be/codeigniter4)
-    - [Phalcon 3+](https://datatables.ozdemir.be/phalcon)
+    - [Phalcon 3 / 4 / 5](https://datatables.ozdemir.be/phalcon)
     - [Prestashop](https://datatables.ozdemir.be/prestashop)
     - [PostgreSql](https://datatables.ozdemir.be/postgresql)
 
@@ -127,20 +127,22 @@ use Ozdemir\Datatables\DB\LaravelAdapter;
 
 Route::get('/ajax/laravel', function () {
 
-    $sqlBuilder = Track::select([
-        'TrackId',
-        'Track.Name',
-        'Title as Album',
-        'MediaType.Name as MediaType',
-        'UnitPrice',
-        'Milliseconds',
-        'Bytes',
-    ])
-        ->join('Album', 'Album.AlbumId', 'Track.AlbumId')
-        ->join('MediaType', 'MediaType.MediaTypeId', 'Track.MediaTypeId');
-
     $dt = new Datatables(new LaravelAdapter);
-    $dt->query($sqlBuilder); // same as the previous example, sql statement can be used.
+
+    $dt->query(
+      Track::query()
+          ->select([
+              'TrackId',
+              'Track.Name',
+              'Title as Album',
+              'MediaType.Name as MediaType',
+              'UnitPrice',
+              'Milliseconds',
+              'Bytes',
+          ])
+          ->join('Album', 'Album.AlbumId', 'Track.AlbumId')
+          ->join('MediaType', 'MediaType.MediaTypeId', 'Track.MediaTypeId')
+    ); // same as the previous example, sql statement can be used.
 
     return $dt->generate();
 });
@@ -273,7 +275,6 @@ PHP > 7.1.3
 ## License
 Copyright (c) 2015 Yusuf ÖZDEMİR, released under [the MIT license](https://github.com/n1crack/Datatables/blob/master/LICENCE)
 
-#### If you like the library  
-<a href="https://www.buymeacoffee.com/ozdemir" target="_blank"><img src="https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png" alt="Buy Me A Coffee" style="height: 41px !important;width: 174px !important;box-shadow: 0px 3px 2px 0px rgba(190, 190, 190, 0.5) !important;-webkit-box-shadow: 0px 3px 2px 0px rgba(190, 190, 190, 0.5) !important;" ></a>
+#### If you like the library please consider giving a star. 
 
 

@@ -89,8 +89,15 @@ class QueryBuilder
     {
         $columns = $this->options->columns();
         if ($columns) {
-            foreach ($columns as $attr) {
+            foreach ($columns as $key => $attr) {
                 $index = $attr['data']['_'] ?? $attr['data'];
+
+                // DataTables sends "function" as the data value when columns.data
+                // is defined as a JS function; fall back to the column position.
+                if ($index === 'function') {
+                    $index = $key;
+                }
+
                 if ($this->columns->visible()->isExists($index)) {
                     $this->columns->visible()->get($index)->attr = $attr;
                 }
@@ -228,21 +235,25 @@ class QueryBuilder
      */
     protected function filterGlobal(Query $query): string
     {
-        $searchinput = preg_replace("/\W+/u", ' ', $this->options->searchValue());
+        $searchInput = preg_replace("/\W+/u", ' ', $this->options->searchValue());
         $columns = $this->columns->searchable();
 
-        if ($searchinput === null || $searchinput === '' || \count($columns) === 0) {
+        if ($searchInput === null || $searchInput === '' || \count($columns) === 0) {
             return '';
         }
 
         $search = [];
 
-        foreach (explode(' ', $searchinput) as $word) {
+        $searchKeywords = $this->db->isExactMatch() ? [$searchInput] : explode(' ', $searchInput);
+
+        foreach ($searchKeywords as $word) {
             $look = [];
 
             foreach ($columns as $column) {
-                $look[] = $this->db->makeLikeString($query, $column, $word);
+                $look[] = $this->columnGlobalFilter($column, new FilterHelper($query, $column, $this->db, $word));
             }
+
+            $look = array_filter($look);
 
             $search[] = '('.implode(' OR ', $look).')';
         }
@@ -260,8 +271,10 @@ class QueryBuilder
         $look = [];
 
         foreach ($columns as $column) {
-            $look[] = $this->columnFilter($column, new FilterHelper($query, $column, $this->db));
+            $look[] = $this->columnIndividualFilter($column, new FilterHelper($query, $column, $this->db));
         }
+
+        $look = array_filter($look);
 
         return implode(' AND ', $look);
     }
@@ -297,13 +310,34 @@ class QueryBuilder
         $o = [];
 
         foreach ($orders as $order) {
-            // RCFERI fix if broken:  $id = $this->options->columns()[$order['column']]['data'];
+            if (!\in_array($order['dir'], ['asc', 'desc'], true)) {
+                continue;
+            }
+
             $data = $this->options->columns()[$order['column']]['data'];
             $id = $data['sort'] ?? $data['_'] ?? $data;
 
-            if ($this->columns->visible()->isExists($id)) {
-                $o[] = $this->columns->visible()->get($id)->name.' '.$order['dir'];
+            // DataTables sends "function" as the data value when columns.data
+            // is defined as a JS function; fall back to the column position.
+            if ($id === 'function') {
+                $id = $order['column'];
             }
+
+            if (!$this->columns->visible()->isExists($id)) {
+                continue;
+            }
+
+            // Resolve the column by its data name (not by its position in the
+            // select statement) so that the orderable check is applied to the
+            // correct column even when the select order differs from the
+            // DataTables column order, or when multiple columns are sorted.
+            $column = $this->columns->visible()->get($id);
+
+            if (!$column->isOrderable()) {
+                continue;
+            }
+
+            $o[] = $column->name.' '.$order['dir'];
         }
 
         if (\count($o) === 0) {
@@ -329,10 +363,24 @@ class QueryBuilder
      * @param FilterHelper $helper
      * @return string
      */
-    public function columnFilter(Column $column, FilterHelper $helper): string
+    public function columnIndividualFilter(Column $column, FilterHelper $helper): string
     {
-        if ($column->hasFilter()) {
-            return $column->customFilter->call($helper) ?? $helper->defaultFilter();
+        if ($column->hasCustomIndividualFilter()) {
+            return $column->customIndividualFilter->call($helper) ?? $helper->defaultFilter();
+        }
+
+        return $helper->defaultFilter();
+    }
+
+    /**
+     * @param Column $column
+     * @param FilterHelper $helper
+     * @return string
+     */
+    public function columnGlobalFilter(Column $column, FilterHelper $helper): string
+    {
+        if ($column->hasCustomGlobalFilter()) {
+            return $column->customGlobalFilter->call($helper) ?? $helper->defaultFilter();
         }
 
         return $helper->defaultFilter();

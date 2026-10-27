@@ -3,11 +3,18 @@
 namespace Ozdemir\Datatables\DB;
 
 use DB;
+use Ozdemir\Datatables\Column;
+use Ozdemir\Datatables\Iterators\ColumnCollection;
 use Ozdemir\Datatables\Query;
 
 
 /**
  * Class LaravelAdapter
+ *
+ * Works with any Laravel version exposing the DB facade. Picks identifier
+ * quoting based on the active connection driver, so both MySQL and PostgreSQL
+ * are supported.
+ *
  * @package Ozdemir\Datatables\DB
  */
 class LaravelAdapter extends DBAdapter
@@ -68,10 +75,46 @@ class LaravelAdapter extends DBAdapter
     }
 
     /**
+     * The base adapter quotes identifiers with MySQL backticks, which are not
+     * valid in PostgreSQL. Use the driver of the active connection to pick the
+     * right identifier quoting.
+     *
+     * @param string $query
+     * @param ColumnCollection $columns
+     * @return string
+     */
+    public function makeQueryString(string $query, ColumnCollection $columns): string
+    {
+        if (DB::getDriverName() === 'pgsql') {
+            return 'SELECT "'.implode('", "', $columns->names())."\" FROM ($query)t";
+        }
+
+        return parent::makeQueryString($query, $columns);
+    }
+
+    /**
+     * PostgreSQL's LIKE is case-sensitive and only works on text types, so use a
+     * cast + ILIKE there (mirrors the dedicated PGSQL adapter).
+     *
+     * @param Query $query
+     * @param Column $column
+     * @param string $word
+     * @return string
+     */
+    public function makeLikeString(Query $query, Column $column, string $word)
+    {
+        if (DB::getDriverName() === 'pgsql') {
+            return $column->name.'::varchar ILIKE '.$this->escape('%'.$word.'%', $query);
+        }
+
+        return parent::makeLikeString($query, $column, $word);
+    }
+
+    /**
      * @param $query
      * @return string
      */
-    public function getQueryString($query)
+    public function getQueryString($query): string
     {
         if ($query instanceof \Illuminate\Database\Eloquent\Builder) {
             return vsprintf(str_replace('?', '%s', $query->toSql()),
