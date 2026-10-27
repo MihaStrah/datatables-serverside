@@ -319,6 +319,5 @@ class FilterHelper
         }
         return $this->whereIn($values);
     }
-  }
 }
 
