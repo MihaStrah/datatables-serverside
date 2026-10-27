@@ -301,7 +301,6 @@ class QueryBuilder
     {
         $orders = $this->options->order();
 
-        // remove - RCFERI - check if it is buggy
         $orders = array_filter($orders, function ($order) {
             return \in_array($order['dir'], ['asc', 'desc'],
                     true) && $this->columns->visible()->offsetGet($order['column'])->isOrderable();
