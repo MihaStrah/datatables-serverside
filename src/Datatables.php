@@ -84,28 +84,6 @@ class Datatables
     }
 
     /**
-     * Skip the expensive COUNT(*) wrap for recordsTotal.
-     * RCFERI
-     */
-    public function setRecordsTotal(?int $total): Datatables
-    {
-        $this->recordsTotalOverride = $total;
-        return $this;
-    }
-
-    /**
-     * Skip the expensive COUNT(*) wrap for recordsFiltered.
-     * When null and no column filters differ from the base query, filtered == total.
-     * RCFERI
-     */
-    public function setRecordsFiltered(?int $filtered): Datatables
-    {
-        $this->recordsFilteredOverride = $filtered;
-        return $this;
-    }
-
-
-    /**
      * @param $column
      * @param Closure $closure
      * @return Datatables
@@ -333,22 +311,13 @@ class Datatables
             $this->response['recordsTotal'] = $this->recordsTotal;
         }
 
-        // RCFERI: allow callers to supply totals (e.g. COUNT(*) FROM temp table)
-        if ($this->recordsTotalOverride !== null) {
-            $this->response['recordsTotal'] = $this->recordsTotalOverride;
-        } else {
-            $this->response['recordsTotal'] = $this->db->count($this->builder->query);
-        }
-
-        if ($this->recordsFilteredOverride !== null) {
-            $this->response['recordsFiltered'] = $this->recordsFilteredOverride;
-        } elseif ($this->builder->query->sql === $this->builder->filtered->sql) {
+        if($this->builder->query->sql === $this->builder->filtered->sql) {
             $this->response['recordsFiltered'] = $this->response['recordsTotal'];
         } else {
             $this->response['recordsFiltered'] = $this->db->count($this->builder->filtered);
             $this->queries['recordsFiltered'] = $this->builder->filtered;
         }
-
+        
         $this->response['data'] = $this->getData();
         $this->queries['full'] = $this->builder->full;
 
