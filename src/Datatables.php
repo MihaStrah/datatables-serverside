@@ -29,6 +29,12 @@ class Datatables
      */
     protected $builder;
 
+    // RCFERI
+    /**
+     * @var QueryBuilder
+     */
+    protected $distinctBuilder;
+
     /**
      * @var Option
      */
@@ -76,6 +82,28 @@ class Datatables
         $this->db = $db->connect();
         $this->options = new Option($request ?: Request::createFromGlobals());
     }
+
+    /**
+     * Skip the expensive COUNT(*) wrap for recordsTotal.
+     * RCFERI
+     */
+    public function setRecordsTotal(?int $total): Datatables
+    {
+        $this->recordsTotalOverride = $total;
+        return $this;
+    }
+
+    /**
+     * Skip the expensive COUNT(*) wrap for recordsFiltered.
+     * When null and no column filters differ from the base query, filtered == total.
+     * RCFERI
+     */
+    public function setRecordsFiltered(?int $filtered): Datatables
+    {
+        $this->recordsFilteredOverride = $filtered;
+        return $this;
+    }
+
 
     /**
      * @param $column
@@ -215,6 +243,22 @@ class Datatables
         return $this;
     }
 
+    // RCFERI
+    // only for mysql and msdb
+    public function preQuery($preQuery): Datatables
+    {
+        $this->builder->setPreQuery($preQuery);
+        if ($this->distinctBuilder) $this->distinctBuilder->setPreQuery($preQuery);
+        return $this;
+    }
+
+    // RCFERI
+    public function distinctQuery($query): Datatables
+    {
+        $this->distinctBuilder = new QueryBuilder($query, $this->options, $this->db);
+        return $this;
+    }
+
     /**
      * @return Datatables
      */
@@ -258,7 +302,7 @@ class Datatables
     /**
      * @return array
      */
-    private function getDistinctData(): array
+    public function getDistinctData(): array
     {
         foreach ($this->distinctColumn as $column) {
             $output[$column] = array_column($this->db->query($this->builder->getDistinctQuery($column)), $column);
@@ -289,7 +333,16 @@ class Datatables
             $this->response['recordsTotal'] = $this->recordsTotal;
         }
 
-        if($this->builder->query->sql === $this->builder->filtered->sql) {
+        // RCFERI: allow callers to supply totals (e.g. COUNT(*) FROM temp table)
+        if ($this->recordsTotalOverride !== null) {
+            $this->response['recordsTotal'] = $this->recordsTotalOverride;
+        } else {
+            $this->response['recordsTotal'] = $this->db->count($this->builder->query);
+        }
+
+        if ($this->recordsFilteredOverride !== null) {
+            $this->response['recordsFiltered'] = $this->recordsFilteredOverride;
+        } elseif ($this->builder->query->sql === $this->builder->filtered->sql) {
             $this->response['recordsFiltered'] = $this->response['recordsTotal'];
         } else {
             $this->response['recordsFiltered'] = $this->db->count($this->builder->filtered);

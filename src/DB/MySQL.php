@@ -54,7 +54,7 @@ class MySQL extends DBAdapter
      */
     public function query(Query $query)
     {
-        $sql = $this->pdo->prepare($query);
+        $sql = $this->pdo->prepare($query->pre . $query);
         $sql->execute($query->escapes);
 
         return $sql->fetchAll(PDO::FETCH_ASSOC);
@@ -66,7 +66,7 @@ class MySQL extends DBAdapter
      */
     public function count(Query $query)
     {
-        $sql = $this->pdo->prepare("Select count(*) as rowcount from ($query)t");
+        $sql = $this->pdo->prepare($query->pre . "Select count(*) as rowcount from ($query)t");
         $sql->execute($query->escapes);
 
         return (int)$sql->fetchColumn();

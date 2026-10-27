@@ -79,9 +79,9 @@ class Column
 
     /**
      * @param $row array
-     * @return mixed the value can be a scalar or an array (e.g. orthogonal data)
+     * @return string|array
      */
-    public function value($row)
+    public function value($row): string|array
     {
         if ($this->closure instanceof \Closure) {
             $value = call_user_func($this->closure, $row);
