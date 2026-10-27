@@ -7,6 +7,10 @@ use \Phalcon\Db;
 
 /**
  * Class PhalconAdapter
+ *
+ * Supports Phalcon 3.x. On Phalcon 4 and 5 the fetch-mode constants moved to
+ * \Phalcon\Db\Enum, so use Phalcon4Adapter for those versions instead.
+ *
  * @package Ozdemir\Datatables\DB
  */
 class PhalconAdapter extends DBAdapter
